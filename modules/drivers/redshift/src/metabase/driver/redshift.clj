@@ -101,6 +101,14 @@
   (or (database-type->base-type column-type)
       ((get-method sql-jdbc.sync/database-type->base-type :postgres) driver column-type)))
 
+;; The normal SELECT * FROM table WHERE 1 <> 1 LIMIT 0 query does not work for permission detection in redshift.
+;; If the user has USAGE on a schema, but i.e. no SELECT on the table, limit 0 does not cause permission denied.
+(defmethod sql-jdbc.sync/fallback-metadata-query :redshift
+  [driver schema table]
+  (sql.qp/format-honeysql driver {:select [:*]
+                                  :from   [(sql.qp/->honeysql driver (hx/identifier :table schema table))]
+                                  :limit  1}))
+
 (defmethod sql.qp/add-interval-honeysql-form :redshift
   [_ hsql-form amount unit]
   (hsql/call :dateadd (hx/literal unit) amount (hx/->timestamp hsql-form)))
